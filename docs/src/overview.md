@@ -60,7 +60,7 @@ pip install -e ".[feetech]"
 port: /dev/tty.usbmodem5AE60581751 # 串口号
 fps: 20 # 帧率
 log_level: INFO # 日志级别
-hardware_mode: normal # normal,310b,rk3588
+hardware_mode: normal # normal, 310b, rk3588
 control_mode: inverse # inverse, act
 ```
 

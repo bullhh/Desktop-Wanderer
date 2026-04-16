@@ -10,3 +10,12 @@
 - [主控制循环 (Main Control Loop)](main_control_loop.md)
 - [开发指南 (Development Guide)](development_guide.md)
 - [故障排除 (Troubleshooting)](troubleshooting.md)
+
+## LeKiwi 设备文档
+
+- [LeKiwi 概述与架构](lekiwi/overview.md)
+- [LeKiwi 快速开始](lekiwi/quickstart.md)
+- [LeKiwi 工作流程](lekiwi/workflow.md)
+- [LeKiwi 配置参数](lekiwi/configuration.md)
+- [LeKiwi 调试方法](lekiwi/debugging.md)
+- [LeKiwi 故障排除](lekiwi/troubleshooting.md)
