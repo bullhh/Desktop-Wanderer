@@ -113,9 +113,9 @@ def yolo_infer(frame):
 def get_red_bucket_local(frame):
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    lower_red1 = np.array([0, 80, 50])
-    upper_red1 = np.array([10, 255, 255])
-    lower_red2 = np.array([170, 80, 50])
+    lower_red1 = np.array([0, 180, 180])
+    upper_red1 = np.array([12, 255, 255])
+    lower_red2 = np.array([175, 200, 200])
     upper_red2 = np.array([180, 255, 255])
 
     mask = (
