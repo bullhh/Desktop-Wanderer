@@ -15,11 +15,6 @@ sys.path.append(os.path.dirname(__file__))
 import time
 import logging
 
-if os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"):
-    os.environ["QT_QPA_PLATFORM"] = "xcb"
-
-import cv2
-
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=getattr(logging, get_log_level()))
@@ -29,7 +24,7 @@ CAMERA_PRODUCT_ID = 0x0346
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
-ENABLE_DEBUG_WINDOW = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+_cv2 = None
 
 # 夹球的动作序列
 CATCH_ACTION = [
@@ -63,8 +58,63 @@ def _run_act_arm_controller(robot):
     return arm_controller(robot)
 
 
+def _should_enable_debug_window() -> bool:
+    return get_hardware_mode() == 'normal' and bool(
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    )
+
+
+def _load_cv2():
+    global _cv2
+    if _cv2 is None:
+        if os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"):
+            os.environ["QT_QPA_PLATFORM"] = "xcb"
+
+        import cv2 as cv2_module
+
+        _cv2 = cv2_module
+    return _cv2
+
+
+def _render_debug_frame(frame, result):
+    cv2 = _load_cv2()
+
+    for box in result:
+        x, y, w, h = box.x, box.y, box.w, box.h
+        center_x = x + w // 2
+        center_y = y + h // 2
+        pt1, pt2 = (x, y), (x + w, y + h)
+        cv2.rectangle(frame, pt1, pt2, (0, 255, 0), 2)
+        cv2.rectangle(
+            frame,
+            (get_left(), get_top()),
+            (get_right(), get_bottom()),
+            color=(255, 255, 0),
+            thickness=2,
+        )
+        cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
+
+    return frame
+
+
+def _show_debug_window(frame) -> bool:
+    cv2 = _load_cv2()
+    cv2.imshow("frame", frame)
+    key = cv2.waitKey(1) & 0xFF
+    return key == ord('q')
+
+
+def _close_debug_window():
+    if _cv2 is not None:
+        _cv2.destroyAllWindows()
+
+
 def main():
     init_app()
+    debug_window_enabled = _should_enable_debug_window()
+    if debug_window_enabled:
+        print("Debug window enabled")
+
     camera = UvcCamera(
         CAMERA_WIDTH,
         CAMERA_HEIGHT,
@@ -118,20 +168,9 @@ def main():
             elif get_robot_status() == RobotStatus.SEARCH:
                 result = yolo_infer(frame) # 找球的算法
 
-            if get_hardware_mode() == 'normal' and ENABLE_DEBUG_WINDOW: # 摄像头视角显示，
-                for box in result:
-                    x, y, w, h = box.x, box.y, box.w, box.h
-                    center_x = x + w // 2
-                    center_y = y + h // 2
-                    pt1, pt2 = (x, y), (x + w, y + h)
-                    cv2.rectangle(frame, pt1, pt2, (0, 255, 0), 2)
-                    cv2.rectangle(frame, (get_left(), get_top()), (get_right(), get_bottom()), color=(255, 255, 0),
-                                  thickness=2)
-                    cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
-
-                cv2.imshow("frame", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
+            if debug_window_enabled:
+                debug_frame = _render_debug_frame(frame, result)
+                if _show_debug_window(debug_frame):
                     break
 
             arm_action = {}
@@ -183,6 +222,7 @@ def main():
             if get_robot_status() != RobotStatus.PICK:
                 busy_wait(max(1.0 / get_fps() - (time.perf_counter() - t0), 0.0))
     finally:
+        _close_debug_window()
         if robot is not None and robot.is_connected:
             robot.disconnect()
         camera.disconnect()
