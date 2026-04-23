@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
+from src.setup import get_runtime_env
 
 LIBDW_NAME = "libdw_uvc_camera.so"
 STARLY_PREBUILT_ROOT = ("thirdparty", "prebuilt", "starry")
@@ -109,22 +110,20 @@ def _load_native_library():
     build_dir = native_root / "build"
     build_lib_path = build_dir / LIBDW_NAME
 
-    lib_path = _find_prebuilt_library(project_root)
-    if lib_path is None:
-        if _should_build_locally(build_lib_path):
-            if _should_rebuild(native_root, build_lib_path):
-                _build_native_library(native_root, build_dir)
-            lib_path = build_lib_path
-        elif build_lib_path.exists():
-            lib_path = build_lib_path
-        else:
+    if get_runtime_env() == "starry":
+        lib_path = _find_prebuilt_library(project_root)
+        if lib_path is None:
             raise RuntimeError(
                 "No prebuilt UVC runtime library was found. "
                 "Expected a prebuilt library under thirdparty/prebuilt/starry/<arch>/lib "
                 "or set DW_UVC_PREBUILT_DIR / DW_UVC_CAMERA_LIB_PATH."
             )
+        _preload_runtime_dependencies(lib_path.parent)
+    else:
+        if _should_rebuild(native_root, build_lib_path):
+            _build_native_library(native_root, build_dir)
+        lib_path = build_lib_path
 
-    _preload_runtime_dependencies(lib_path.parent)
     lib = ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
     lib.dw_uvc_camera_create.argtypes = [
         ctypes.c_int,
@@ -184,17 +183,6 @@ def _find_prebuilt_library(project_root: Path) -> Path | None:
             return lib_path
 
     return None
-
-
-def _should_build_locally(build_lib_path: Path) -> bool:
-    if os.environ.get("DW_UVC_DISABLE_BUILD") == "1":
-        return False
-    if os.environ.get("DW_UVC_ALLOW_BUILD") == "1":
-        return True
-
-    machine = platform.machine().lower()
-    return machine not in {"aarch64", "arm64"}
-
 
 def _preload_runtime_dependencies(lib_dir: Path):
     for prefix in ("libusb-1.0.so", "libuvc.so"):

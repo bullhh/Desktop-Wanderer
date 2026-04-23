@@ -19,6 +19,7 @@ class RobotControlModel(Enum):
 _is_initialized: bool = False
 _hardware_mode: str = "normal"
 _fps: int = 20
+_runtime_env: str = "linux"
 #
 _left: int = 0
 _top: int = 0
@@ -51,7 +52,7 @@ def _update_frame_geometry(frame_width: int, frame_height: int):
 
 
 def init_app():
-    global _is_initialized, _hardware_mode, _port, _log_level, _robot_status, _control_mode, _fps
+    global _is_initialized, _hardware_mode, _runtime_env, _port, _log_level, _robot_status, _control_mode, _fps
     global _active_frame_width, _active_frame_height
     if _is_initialized:
         return
@@ -60,6 +61,7 @@ def init_app():
         config = yaml.safe_load(f)
 
     _hardware_mode = config['hardware_mode']
+    _runtime_env = config.get('runtime_env', 'linux')
     _port = config['port']
     _log_level = config['log_level']
     _robot_status = RobotStatus.SEARCH
@@ -79,6 +81,12 @@ def get_hardware_mode():
     if not _is_initialized:
         init_app()
     return _hardware_mode
+
+
+def get_runtime_env():
+    if not _is_initialized:
+        init_app()
+    return _runtime_env
 
 
 def get_left():
