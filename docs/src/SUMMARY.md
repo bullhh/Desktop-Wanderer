@@ -9,6 +9,7 @@
 - [硬件抽象层 (Hardware Abstraction)](hardware_abstraction.md)
 - [主控制循环 (Main Control Loop)](main_control_loop.md)
 - [开发指南 (Development Guide)](development_guide.md)
+- [Starry 部署 (Starry Deployment)](starry_deployment.md)
 - [故障排除 (Troubleshooting)](troubleshooting.md)
 
 ## LeKiwi 设备文档

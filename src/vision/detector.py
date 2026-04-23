@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import ctypes
+import os
+import platform
 import subprocess
 from pathlib import Path
 
 import numpy as np
+
+LIBDW_NAME = "libdw_uvc_camera.so"
+STARLY_PREBUILT_ROOT = ("thirdparty", "prebuilt", "starry")
 
 
 class UvcCamera:
@@ -102,12 +107,25 @@ def _load_native_library():
     project_root = Path(__file__).resolve().parents[2]
     native_root = project_root / "src" / "native" / "uvc_camera"
     build_dir = native_root / "build"
-    lib_path = build_dir / "libdw_uvc_camera.so"
+    build_lib_path = build_dir / LIBDW_NAME
 
-    if _should_rebuild(native_root, lib_path):
-        _build_native_library(native_root, build_dir)
+    lib_path = _find_prebuilt_library(project_root)
+    if lib_path is None:
+        if _should_build_locally(build_lib_path):
+            if _should_rebuild(native_root, build_lib_path):
+                _build_native_library(native_root, build_dir)
+            lib_path = build_lib_path
+        elif build_lib_path.exists():
+            lib_path = build_lib_path
+        else:
+            raise RuntimeError(
+                "No prebuilt UVC runtime library was found. "
+                "Expected a prebuilt library under thirdparty/prebuilt/starry/<arch>/lib "
+                "or set DW_UVC_PREBUILT_DIR / DW_UVC_CAMERA_LIB_PATH."
+            )
 
-    lib = ctypes.CDLL(str(lib_path))
+    _preload_runtime_dependencies(lib_path.parent)
+    lib = ctypes.CDLL(str(lib_path), mode=ctypes.RTLD_GLOBAL)
     lib.dw_uvc_camera_create.argtypes = [
         ctypes.c_int,
         ctypes.c_int,
@@ -138,6 +156,60 @@ def _load_native_library():
     lib.dw_uvc_camera_last_error.argtypes = [ctypes.c_void_p]
     lib.dw_uvc_camera_last_error.restype = ctypes.c_char_p
     return lib
+
+
+def _find_prebuilt_library(project_root: Path) -> Path | None:
+    explicit_lib = os.environ.get("DW_UVC_CAMERA_LIB_PATH")
+    if explicit_lib:
+        path = Path(explicit_lib).expanduser().resolve()
+        if path.exists():
+            return path
+
+    search_dirs = []
+    explicit_dir = os.environ.get("DW_UVC_PREBUILT_DIR")
+    if explicit_dir:
+        search_dirs.append(Path(explicit_dir).expanduser().resolve())
+
+    machine = platform.machine().lower()
+    search_dirs.extend(
+        [
+            project_root.joinpath(*STARLY_PREBUILT_ROOT, machine, "lib"),
+            project_root.joinpath(*STARLY_PREBUILT_ROOT, "aarch64", "lib"),
+        ]
+    )
+
+    for search_dir in search_dirs:
+        lib_path = search_dir / LIBDW_NAME
+        if lib_path.exists():
+            return lib_path
+
+    return None
+
+
+def _should_build_locally(build_lib_path: Path) -> bool:
+    if os.environ.get("DW_UVC_DISABLE_BUILD") == "1":
+        return False
+    if os.environ.get("DW_UVC_ALLOW_BUILD") == "1":
+        return True
+
+    machine = platform.machine().lower()
+    return machine not in {"aarch64", "arm64"}
+
+
+def _preload_runtime_dependencies(lib_dir: Path):
+    for prefix in ("libusb-1.0.so", "libuvc.so"):
+        dependency = _pick_matching_library(lib_dir, prefix)
+        if dependency is not None:
+            ctypes.CDLL(str(dependency), mode=ctypes.RTLD_GLOBAL)
+
+
+def _pick_matching_library(lib_dir: Path, prefix: str) -> Path | None:
+    matches = sorted(lib_dir.glob(f"{prefix}*"))
+    if not matches:
+        return None
+
+    # Prefer the most versioned file first so the loader sees the real SONAME owner.
+    return sorted(matches, key=lambda path: (len(path.name), path.name), reverse=True)[0]
 
 
 def _should_rebuild(native_root: Path, lib_path: Path) -> bool:
