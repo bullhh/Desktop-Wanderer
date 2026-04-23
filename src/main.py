@@ -26,8 +26,8 @@ logging.basicConfig(level=getattr(logging, get_log_level()))
 
 CAMERA_VENDOR_ID = 0x0AC8
 CAMERA_PRODUCT_ID = 0x0346
-CAMERA_WIDTH = 1280
-CAMERA_HEIGHT = 720
+CAMERA_WIDTH = 640
+CAMERA_HEIGHT = 480
 CAMERA_FPS = 30
 ENABLE_DEBUG_WINDOW = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
