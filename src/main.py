@@ -1,5 +1,6 @@
 import os
 import sys
+from dataclasses import dataclass
 
 from src.arm_inverse_controller import p_control_loop, return_to_start_position
 from src.move_controller import move_controller, get_empty_move_action, move_controller_for_bucket
@@ -19,12 +20,25 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=getattr(logging, get_log_level()))
 
-CAMERA_VENDOR_ID = 0x0AC8
-CAMERA_PRODUCT_ID = 0x0346
-CAMERA_WIDTH = 640
-CAMERA_HEIGHT = 480
-CAMERA_FPS = 30
 _cv2 = None
+
+
+@dataclass(frozen=True)
+class CameraRuntimeConfig:
+    vendor_id: int
+    product_id: int
+    width: int
+    height: int
+    fps: int
+
+
+CAMERA_CONFIG = CameraRuntimeConfig(
+    vendor_id=0x0AC8,
+    product_id=0x0346,
+    width=640,
+    height=480,
+    fps=30,
+)
 
 # 夹球的动作序列
 CATCH_ACTION = [
@@ -116,11 +130,11 @@ def main():
         print("Debug window enabled")
 
     camera = UvcCamera(
-        CAMERA_WIDTH,
-        CAMERA_HEIGHT,
-        CAMERA_FPS,
-        vendor_id=CAMERA_VENDOR_ID,
-        product_id=CAMERA_PRODUCT_ID,
+        CAMERA_CONFIG.width,
+        CAMERA_CONFIG.height,
+        CAMERA_CONFIG.fps,
+        vendor_id=CAMERA_CONFIG.vendor_id,
+        product_id=CAMERA_CONFIG.product_id,
     )
     robot = None
     try:
