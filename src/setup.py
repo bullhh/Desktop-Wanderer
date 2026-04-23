@@ -26,6 +26,8 @@ _right: int = 0
 _bottom: int = 0
 _target_w: int = 0
 _target_h: int = 0
+_active_frame_width: int = 640
+_active_frame_height: int = 480
 #
 _port: str = "/dev/ttyUSB0"
 _log_level: str = "INFO"
@@ -34,16 +36,11 @@ _robot_status: RobotStatus = RobotStatus.SEARCH
 _control_mode: RobotControlModel = RobotControlModel.INVERSE
 
 
-def init_app():
-    global _is_initialized, _hardware_mode, _left, _top, _right, _bottom, _port, _log_level, _target_w, _target_h, _robot_status, _control_mode, _fps
-    if _is_initialized:
-        return
-    print("Initializing...")
-    with open('config.yaml', 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
+def _update_frame_geometry(frame_width: int, frame_height: int):
+    global _left, _top, _right, _bottom, _target_w, _target_h
 
-    _hardware_mode = config['hardware_mode']
-    height, width = 480, 640
+    width = max(int(frame_width), 1)
+    height = max(int(frame_height), 1)
 
     _target_w = (min(height, width) // 3) - 10
     _target_h = min(height, width) // 3
@@ -52,9 +49,23 @@ def init_app():
     _right = min(width, _left + _target_w)
     _bottom = min(height, _top + _target_h)
 
+
+def init_app():
+    global _is_initialized, _hardware_mode, _port, _log_level, _robot_status, _control_mode, _fps
+    global _active_frame_width, _active_frame_height
+    if _is_initialized:
+        return
+    print("Initializing...")
+    with open('config.yaml', 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+
+    _hardware_mode = config['hardware_mode']
     _port = config['port']
     _log_level = config['log_level']
     _robot_status = RobotStatus.SEARCH
+    _active_frame_width = 640
+    _active_frame_height = 480
+    _update_frame_geometry(_active_frame_width, _active_frame_height)
     if config['control_mode'] == 'act':
         _control_mode = RobotControlModel.ACT
     else:
@@ -116,6 +127,21 @@ def get_target_h():
     if not _is_initialized:
         init_app()
     return _target_h
+
+
+def set_active_frame_shape(width: int, height: int):
+    global _active_frame_width, _active_frame_height
+    if not _is_initialized:
+        init_app()
+
+    width = max(int(width), 1)
+    height = max(int(height), 1)
+    if width == _active_frame_width and height == _active_frame_height:
+        return
+
+    _active_frame_width = width
+    _active_frame_height = height
+    _update_frame_geometry(width, height)
 
 
 def get_robot_status():

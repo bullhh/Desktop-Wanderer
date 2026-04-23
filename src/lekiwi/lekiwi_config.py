@@ -1,14 +1,5 @@
-from lerobot.cameras import CameraConfig, Cv2Rotation, ColorMode
-from lerobot.cameras.opencv import OpenCVCameraConfig
 from lerobot.robots import RobotConfig
 from dataclasses import dataclass, field
-
-def lekiwi_cameras_config() -> dict[str, CameraConfig]:
-    return {
-        "front": OpenCVCameraConfig(
-            index_or_path=0, fps=30, width=640, height=480, color_mode=ColorMode.BGR
-        ),
-    }
 
 @RobotConfig.register_subclass("lekiwi")
 @dataclass
@@ -22,7 +13,7 @@ class LeKiwiConfig(RobotConfig):
     # names to the max_relative_target value for that motor.
     max_relative_target: float | dict[str, float] | None = None
 
-    cameras: dict[str, CameraConfig] = field(default_factory=lekiwi_cameras_config)
+    cameras: dict[str, object] = field(default_factory=dict)
 
     # Set to `True` for backward compatibility with previous policies/dataset
     use_degrees: bool = False

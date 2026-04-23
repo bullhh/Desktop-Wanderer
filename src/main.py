@@ -6,8 +6,10 @@ from src.arm_inverse_controller import p_control_loop, return_to_start_position
 from src.move_controller import move_controller, get_empty_move_action, move_controller_for_bucket
 from src.robot_setup import init_robot, get_robot, get_direction, reset_robot, get_target_positions
 from src.setup import init_app, get_left, get_top, get_right, get_bottom, get_log_level, get_robot_status, \
-    RobotStatus, get_control_mode, RobotControlModel, set_robot_status, get_hardware_mode, get_fps
+    RobotStatus, get_control_mode, RobotControlModel, set_robot_status, get_hardware_mode, get_fps, \
+    set_active_frame_shape
 from src.utils import busy_wait
+from src.vision import UvcCamera
 from src.yolov import yolo_infer, get_black_bucket_local, get_red_bucket_local
 
 sys.path.append(os.path.dirname(__file__))
@@ -18,6 +20,13 @@ import cv2
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=getattr(logging, get_log_level()))
+
+CAMERA_VENDOR_ID = 0x0AC8
+CAMERA_PRODUCT_ID = 0x0346
+CAMERA_WIDTH = 1280
+CAMERA_HEIGHT = 720
+CAMERA_FPS = 30
+ENABLE_DEBUG_WINDOW = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 # 夹球的动作序列
 CATCH_ACTION = [
@@ -46,33 +55,44 @@ PUT_ACTION = [
 
 def main():
     init_app()
-    init_robot()
-    robot = get_robot()
-    direction = get_direction()
-    robot.connect()
-
-    print("Reading initial joint angles...")
-    start_obs = robot.get_observation()
-    start_positions = {}
-    for key, value in start_obs.items():
-        if key.endswith('.pos'):
-            motor_name = key.removesuffix('.pos')
-            start_positions[motor_name] = int(value)
-
-    print("Initial joint angles:")
-    for joint_name, position in start_positions.items():
-        print(f"  {joint_name}: {position}°")
-
-    return_to_start_position(robot, start_obs, get_target_positions(), 0.9, get_fps()) # 机械臂回到预设位置
-    x0, y0 = 0.0989, 0.125 # 当前位置的xy坐标
-    current_x, current_y = x0, y0
-    command_step = 0
+    camera = UvcCamera(
+        CAMERA_WIDTH,
+        CAMERA_HEIGHT,
+        CAMERA_FPS,
+        vendor_id=CAMERA_VENDOR_ID,
+        product_id=CAMERA_PRODUCT_ID,
+    )
+    robot = None
     try:
+        camera.connect()
+
+        init_robot()
+        robot = get_robot()
+        direction = get_direction()
+        robot.connect()
+
+        print("Reading initial joint angles...")
+        start_obs = robot.get_observation()
+        start_positions = {}
+        for key, value in start_obs.items():
+            if key.endswith('.pos'):
+                motor_name = key.removesuffix('.pos')
+                start_positions[motor_name] = int(value)
+
+        print("Initial joint angles:")
+        for joint_name, position in start_positions.items():
+            print(f"  {joint_name}: {position}°")
+
+        return_to_start_position(robot, start_obs, get_target_positions(), 0.9, get_fps()) # 机械臂回到预设位置
+        x0, y0 = 0.0989, 0.125 # 当前位置的xy坐标
+        current_x, current_y = x0, y0
+        command_step = 0
         while True:
             t0 = time.perf_counter()
 
             current_obs = robot.get_observation()
-            frame = current_obs["front"]
+            frame = camera.read()
+            set_active_frame_shape(frame.shape[1], frame.shape[0])
             if get_robot_status() == RobotStatus.FIND_BUCKET:
                 gripper_pos = current_obs.get('arm_gripper.pos', 5)
                 is_gripper_holding = gripper_pos > 25
@@ -88,7 +108,7 @@ def main():
             elif get_robot_status() == RobotStatus.SEARCH:
                 result = yolo_infer(frame) # 找球的算法
 
-            if get_hardware_mode() == 'normal': # 摄像头视角显示，
+            if get_hardware_mode() == 'normal' and ENABLE_DEBUG_WINDOW: # 摄像头视角显示，
                 for box in result:
                     x, y, w, h = box.x, box.y, box.w, box.h
                     center_x = x + w // 2
@@ -153,7 +173,9 @@ def main():
             if get_robot_status() != RobotStatus.PICK:
                 busy_wait(max(1.0 / get_fps() - (time.perf_counter() - t0), 0.0))
     finally:
-        robot.disconnect()
+        if robot is not None and robot.is_connected:
+            robot.disconnect()
+        camera.disconnect()
 
 
 if __name__ == '__main__':

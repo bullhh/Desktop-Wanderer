@@ -22,7 +22,6 @@ from typing import Any
 
 import numpy as np
 
-from lerobot.cameras.utils import make_cameras_from_configs
 from lerobot.motors import Motor, MotorCalibration, MotorNormMode
 from lerobot.motors.feetech import (
     FeetechMotorsBus,
@@ -71,7 +70,7 @@ class LeKiwi(Robot):
         )
         self.arm_motors = [motor for motor in self.bus.motors if motor.startswith("arm")]
         self.base_motors = [motor for motor in self.bus.motors if motor.startswith("base")]
-        self.cameras = make_cameras_from_configs(config.cameras)
+        self.cameras = {}
 
     @property
     def _state_ft(self) -> dict[str, type]:

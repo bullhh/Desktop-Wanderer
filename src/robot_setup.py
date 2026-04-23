@@ -30,7 +30,7 @@ def init_robot():
     global _is_robot_initialized, _robot, _direction, _target_positions, _pitch
     if _is_robot_initialized:
         return
-    cfg = LeKiwiConfig(port=get_port())
+    cfg = LeKiwiConfig(port=get_port(), cameras={})
     _robot = LeKiwi(cfg)
     _direction = DirectionControl()
 
