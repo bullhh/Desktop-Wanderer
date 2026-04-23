@@ -1,7 +1,6 @@
 import os
 import sys
 
-from src.arm_act_controller import arm_controller
 from src.arm_inverse_controller import p_control_loop, return_to_start_position
 from src.move_controller import move_controller, get_empty_move_action, move_controller_for_bucket
 from src.robot_setup import init_robot, get_robot, get_direction, reset_robot, get_target_positions
@@ -15,6 +14,10 @@ from src.yolov import yolo_infer, get_black_bucket_local, get_red_bucket_local
 sys.path.append(os.path.dirname(__file__))
 import time
 import logging
+
+if os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"):
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
 import cv2
 
 
@@ -52,6 +55,13 @@ PUT_ACTION = [
     ("move_to", (-0.1, 0.2)), # 回收
     ("gripper", -60), # 夹爪关闭
 ]
+
+
+def _run_act_arm_controller(robot):
+    from src.arm_act_controller import arm_controller
+
+    return arm_controller(robot)
+
 
 def main():
     init_app()
@@ -129,7 +139,7 @@ def main():
 
             if get_robot_status() == RobotStatus.PICK:
                 if get_control_mode() == RobotControlModel.ACT:
-                    arm_action = arm_controller(robot)
+                    arm_action = _run_act_arm_controller(robot)
                 else:
                     arm_action, current_x, current_y = p_control_loop(CATCH_ACTION[command_step],
                                                                       current_x,
